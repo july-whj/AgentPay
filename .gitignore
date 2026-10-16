@@ -94,3 +94,6 @@ postgres-data/
 # Logs
 logs/
 *.log
+
+# Internal docs, design, and roadmap (local only)
+docs/
