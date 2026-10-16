@@ -1,0 +1,154 @@
+{
+  "version": "1.0.0",
+  "suite": "policy-budget-conformance",
+  "description": "Standard test vectors for financial firewall rules, budget rolling math, and two-phase reservation",
+  "policy": {
+    "policyId": "pol_vector_test",
+    "name": "Conformance Test Policy",
+    "maxPerTxBaseUnits": "1000000",
+    "rollingBudget24hBaseUnits": "10000000",
+    "lifetimeBudgetBaseUnits": "50000000",
+    "whitelist": {
+      "payees": [
+        "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC"
+      ],
+      "assets": [
+        "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+      ],
+      "networks": [
+        "eip155:84532"
+      ],
+      "domains": [
+        "api.trusted-provider.com"
+      ]
+    }
+  },
+  "testCases": [
+    {
+      "id": "TC_POLICY_01_NORMAL_RESERVE_COMMIT",
+      "description": "Standard reservation within budget followed by commit",
+      "actions": [
+        {
+          "step": 1,
+          "action": "reserve",
+          "intentId": "intent_01",
+          "amount": "100000",
+          "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "network": "eip155:84532",
+          "domain": "api.trusted-provider.com",
+          "expectedResult": "APPROVED",
+          "expectedAvailableAfter": "9900000"
+        },
+        {
+          "step": 2,
+          "action": "commit",
+          "intentId": "intent_01",
+          "expectedResult": "COMMITTED",
+          "expectedAvailableAfter": "9900000"
+        }
+      ]
+    },
+    {
+      "id": "TC_POLICY_02_SINGLE_CAP_EXCEEDED",
+      "description": "Attempt to spend 1.5 USDC exceeding maxPerTx of 1.0 USDC",
+      "actions": [
+        {
+          "step": 1,
+          "action": "reserve",
+          "intentId": "intent_02",
+          "amount": "1500000",
+          "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "network": "eip155:84532",
+          "domain": "api.trusted-provider.com",
+          "expectedResult": "REJECTED",
+          "expectedError": "SingleTxCapExceededException"
+        }
+      ]
+    },
+    {
+      "id": "TC_POLICY_03_ROLLING_BUDGET_EXHAUSTION",
+      "description": "Cumulative reservations exhaust rolling 10 USDC budget",
+      "actions": [
+        {
+          "step": 1,
+          "action": "reserve",
+          "intentId": "intent_03_1",
+          "amount": "1000000",
+          "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "network": "eip155:84532",
+          "expectedResult": "APPROVED"
+        },
+        {
+          "step": 2,
+          "action": "reserve",
+          "intentId": "intent_03_2",
+          "amount": "1000000",
+          "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "network": "eip155:84532",
+          "expectedResult": "APPROVED"
+        }
+      ]
+    },
+    {
+      "id": "TC_POLICY_04_RELEASE_RECOVERS_BUDGET",
+      "description": "Releasing an active reservation restores the available quota",
+      "actions": [
+        {
+          "step": 1,
+          "action": "reserve",
+          "intentId": "intent_04",
+          "amount": "500000",
+          "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "network": "eip155:84532",
+          "expectedResult": "APPROVED"
+        },
+        {
+          "step": 2,
+          "action": "release",
+          "intentId": "intent_04",
+          "expectedResult": "RELEASED"
+        }
+      ]
+    },
+    {
+      "id": "TC_POLICY_05_PAYEE_NOT_WHITELISTED",
+      "description": "Reject transaction sent to unlisted recipient address",
+      "actions": [
+        {
+          "step": 1,
+          "action": "reserve",
+          "intentId": "intent_05",
+          "amount": "10000",
+          "payee": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+          "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "network": "eip155:84532",
+          "expectedResult": "REJECTED",
+          "expectedError": "PayeeNotWhitelistedException"
+        }
+      ]
+    },
+    {
+      "id": "TC_POLICY_06_NETWORK_NOT_WHITELISTED",
+      "description": "Reject transaction targeting an unsupported network (e.g. Ethereum Mainnet when only Base Sepolia allowed)",
+      "actions": [
+        {
+          "step": 1,
+          "action": "reserve",
+          "intentId": "intent_06",
+          "amount": "10000",
+          "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+          "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+          "network": "eip155:1",
+          "expectedResult": "REJECTED",
+          "expectedError": "NetworkNotWhitelistedException"
+        }
+      ]
+    }
+  ]
+}

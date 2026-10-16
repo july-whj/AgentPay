@@ -1,0 +1,62 @@
+{
+  "version": "1.0.0",
+  "suite": "eip712-authorization-conformance",
+  "description": "Standard EIP-712 & EIP-3009 TransferWithAuthorization test vector for USDC on Base Sepolia",
+  "domain": {
+    "name": "USD Coin",
+    "version": "2",
+    "chainId": 84532,
+    "verifyingContract": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+  },
+  "primaryType": "TransferWithAuthorization",
+  "types": {
+    "EIP712Domain": [
+      { "name": "name", "type": "string" },
+      { "name": "version", "type": "string" },
+      { "name": "chainId", "type": "uint256" },
+      { "name": "verifyingContract", "type": "address" }
+    ],
+    "TransferWithAuthorization": [
+      { "name": "from", "type": "address" },
+      { "name": "to", "type": "address" },
+      { "name": "value", "type": "uint256" },
+      { "name": "validAfter", "type": "uint256" },
+      { "name": "validBefore", "type": "uint256" },
+      { "name": "nonce", "type": "bytes32" }
+    ]
+  },
+  "testWallet": {
+    "privateKey": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+    "expectedSigner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+  },
+  "testCases": [
+    {
+      "id": "TC_EIP712_01_STANDARD_USDC_PAYMENT",
+      "description": "0.1 USDC payment to seller with 5 minute expiration window",
+      "message": {
+        "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "value": "100000",
+        "validAfter": 1729000000,
+        "validBefore": 1729000300,
+        "nonce": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+      },
+      "expectedHashes": {
+        "domainTypeString": "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)",
+        "messageTypeString": "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+      }
+    },
+    {
+      "id": "TC_EIP712_02_ZERO_PADDED_NONCE",
+      "description": "Payment authorization with a 32-byte nonce containing leading zeros",
+      "message": {
+        "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "value": "500000",
+        "validAfter": 1729000000,
+        "validBefore": 1729000300,
+        "nonce": "0x0000000000000000000000000000000000000000000000000000000000000001"
+      }
+    }
+  ]
+}

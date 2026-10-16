@@ -1,0 +1,76 @@
+{
+  "version": "1.0.0",
+  "suite": "x402-v2-challenge-conformance",
+  "description": "Standard test vectors for x402 V2 HTTP header serialization, challenge encoding, and signature schemas",
+  "validChallenges": [
+    {
+      "id": "TC_X402_01_VALID_STANDARD_CHALLENGE",
+      "description": "Standard Base Sepolia 0.05 USDC challenge",
+      "payload": {
+        "version": "2.0",
+        "challengeId": "ch_01j7xyz890abcdef12345678",
+        "network": "eip155:84532",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "assetSymbol": "USDC",
+        "decimals": 6,
+        "amount": "50000",
+        "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "scheme": "EIP-3009",
+        "validAfter": 1729000000,
+        "validBefore": 1729000300,
+        "facilitatorUrl": "https://facilitator.agentpay.dev",
+        "resourceUri": "/v1/market-data"
+      },
+      "expectedHeader": "PAYMENT-REQUIRED"
+    },
+    {
+      "id": "TC_X402_02_VALID_SIGNATURE_HEADER",
+      "description": "Client payment authorization header matching challenge",
+      "payload": {
+        "version": "2.0",
+        "challengeId": "ch_01j7xyz890abcdef12345678",
+        "payer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "scheme": "EIP-3009",
+        "nonce": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        "validAfter": 1729000000,
+        "validBefore": 1729000300,
+        "signature": {
+          "v": 27,
+          "r": "0x6f2b1a8c90abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          "s": "0x1a8c6f2b90abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+          "compact": "0x6f2b1a8c90abcdef1234567890abcdef1234567890abcdef1234567890abcdef1a8c6f2b90abcdef1234567890abcdef1234567890abcdef1234567890abcdef1b"
+        }
+      },
+      "expectedHeader": "PAYMENT-SIGNATURE"
+    }
+  ],
+  "invalidChallenges": [
+    {
+      "id": "TC_X402_INVALID_01_MISSING_AMOUNT",
+      "description": "Challenge without amount field must fail validation",
+      "payload": {
+        "version": "2.0",
+        "challengeId": "ch_bad_01",
+        "network": "eip155:84532",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "scheme": "EIP-3009"
+      },
+      "expectedError": "MissingField: amount"
+    },
+    {
+      "id": "TC_X402_INVALID_02_MALFORMED_NETWORK",
+      "description": "Non-CAIP-2 formatted network identifier must be rejected",
+      "payload": {
+        "version": "2.0",
+        "challengeId": "ch_bad_02",
+        "network": "base-testnet",
+        "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+        "amount": "10000",
+        "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "scheme": "EIP-3009"
+      },
+      "expectedError": "InvalidFormat: network must match CAIP-2"
+    }
+  ]
+}
