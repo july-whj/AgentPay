@@ -17,6 +17,24 @@
   English | <a href="./README_zh.md">简体中文</a>
 </p>
 
+> [!WARNING]  
+> **Experimental & Unaudited Software**: AgentPay is currently under active, early-stage development. It is an experimental prototype designed strictly for research, testing, and devnet evaluation (e.g. Base Sepolia). **DO NOT use this software to manage, hold, or transfer production/mainnet funds.**
+
+---
+
+## 🚦 Project Status & Delivery Focus
+
+| Component / Subsystem | Status | Target Phase | Notes |
+| :--- | :---: | :---: | :--- |
+| **Python Buyer SDK (`httpx` Interceptor)** | 🟡 In Progress | 2026 Q4 (v0.1.0) | Transparent 402 retry, EIP-712/3009 local signing |
+| **Financial Firewall (Policy Engine)** | 🟡 In Progress | 2026 Q4 (v0.1.0) | Max caps, rolling budgets, loop circuit breakers, atomic SQLite reserve |
+| **Tri-State Machine & Idempotency** | 🟡 In Progress | 2026 Q4 (v0.1.0) | Independent state tracking, recovery without double-deduction |
+| **Self-Hosted Reverse Gateway** | 🟡 In Progress | 2026 Q4 (v0.1.0) | Minimal YAML-configured proxy (`price`, `payTo`, upstream routing) |
+| **Runaway Loop Mitigation Demo** | ⚪ Planned | 2026 Q4 (v0.1.0) | Reproducible `make demo` showcasing loop breaker & recovery |
+| **TypeScript Buyer/Seller SDKs** | ⚪ Planned | 2027 Roadmap | Express/Fastify plugins deferred to 2027 |
+| **Java / Spring Boot Starter** | ⚪ Planned | 2027 Roadmap | Enterprise `@RequiresPayment` annotation & provider suite |
+| **Production PostgreSQL & Cloud Facilitator** | ⚪ Planned | 2027 Roadmap | Multi-tenant control plane, external DB and hosted relayer |
+
 ---
 
 ## 💡 What is AgentPay?
