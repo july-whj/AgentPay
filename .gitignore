@@ -1,0 +1,96 @@
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.keystore
+
+# Node.js & pnpm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-store/
+.pnpm-debug.log*
+
+# Build outputs (TypeScript / JavaScript)
+dist/
+build/
+out/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+
+# Java & Gradle
+.gradle/
+build/
+!src/**/build/
+bin/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+.gradletasknamecache
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+
+# IDE & Editors
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+*.lcov
+test-results/
+reports/
+
+# Database & Local Infrastructure
+postgres-data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log

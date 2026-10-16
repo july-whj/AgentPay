@@ -1,0 +1,18 @@
+{
+  "name": "agentpay-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Open-Source Payment Infrastructure & Financial Firewall for Autonomous AI Agents",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "pnpm --recursive run build",
+    "test": "pnpm --recursive run test",
+    "lint": "pnpm --recursive run lint",
+    "clean": "pnpm --recursive run clean"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
