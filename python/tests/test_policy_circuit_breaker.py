@@ -43,6 +43,7 @@ def _init_test_db(conn: sqlite3.Connection) -> None:
             circuit_max_rpm INTEGER NOT NULL DEFAULT 15,
             circuit_consecutive_failures INTEGER NOT NULL DEFAULT 5,
             circuit_cooldown_seconds INTEGER NOT NULL DEFAULT 300,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
             breaker_state TEXT NOT NULL DEFAULT 'CLOSED' CHECK (breaker_state IN ('CLOSED', 'OPEN', 'HALF_OPEN')),
             tripped_at INTEGER,
             is_frozen INTEGER NOT NULL DEFAULT 0 CHECK (is_frozen IN (0, 1)),

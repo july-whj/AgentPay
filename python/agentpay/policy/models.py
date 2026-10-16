@@ -37,8 +37,15 @@ _EVM_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 # ---------------------------------------------------------------------------
 
 
+# Maximum signed 64-bit integer for SQLite INTEGER column (2^63 - 1)
+SQLITE_MAX_INT = 9_223_372_036_854_775_807
+
+
 def _validate_positive_int(value: object, field_name: str) -> int:
-    """Ensure *value* is a strictly positive int (not float)."""
+    """Ensure *value* is a strictly positive int within SQLite signed 64-bit bounds (not bool, not float)."""
+    # In Python, bool is an instance of int (e.g. isinstance(True, int) is True)
+    if isinstance(value, bool):
+        raise TypeError(f"{field_name} must be an integer, got bool")
     if isinstance(value, float):
         raise TypeError(f"{field_name} must be an integer, got float")
     if isinstance(value, str):
@@ -53,7 +60,26 @@ def _validate_positive_int(value: object, field_name: str) -> int:
         raise TypeError(f"{field_name} must be int, got {type(value).__name__}")
     if value <= 0:
         raise ValueError(f"{field_name} must be > 0, got {value}")
+    if value > SQLITE_MAX_INT:
+        raise ValueError(
+            f"{field_name} exceeds SQLite maximum 64-bit signed integer ({SQLITE_MAX_INT})"
+        )
     return value
+
+
+def _normalize_domain_host(value: str) -> str:
+    """Normalize a domain or URL to lowercase hostname without trailing dot or port."""
+    v = value.strip().lower()
+    # Strip scheme if full URL provided
+    if "://" in v:
+        v = v.split("://", 1)[1]
+    # Strip path or query
+    v = v.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+    # Strip port if present
+    if ":" in v:
+        v = v.split(":", 1)[0]
+    # Strip trailing dot
+    return v.rstrip(".")
 
 
 def _validate_evm_address(value: str, field_name: str) -> str:
@@ -172,34 +198,74 @@ class PolicyConfig(BaseModel):
     @field_validator("whitelist_payees", mode="before")
     @classmethod
     def _normalise_payees(cls, v: object) -> frozenset[str]:
-        if isinstance(v, (list, tuple, set, frozenset)):
-            return frozenset(
-                _validate_evm_address(addr, "whitelist_payees") for addr in v
+        if v is None:
+            return frozenset()
+        if isinstance(v, (str, bytes)) or not isinstance(
+            v, (list, tuple, set, frozenset)
+        ):
+            raise TypeError(
+                f"whitelist_payees must be a list/set of strings, got {type(v).__name__}"
             )
-        return frozenset()
+        for addr in v:
+            if not isinstance(addr, str):
+                raise TypeError(
+                    f"whitelist_payees elements must be strings, got {type(addr).__name__}"
+                )
+        return frozenset(_validate_evm_address(addr, "whitelist_payees") for addr in v)
 
     @field_validator("whitelist_assets", mode="before")
     @classmethod
     def _normalise_assets(cls, v: object) -> frozenset[str]:
-        if isinstance(v, (list, tuple, set, frozenset)):
-            return frozenset(
-                _validate_evm_address(addr, "whitelist_assets") for addr in v
+        if v is None:
+            return frozenset()
+        if isinstance(v, (str, bytes)) or not isinstance(
+            v, (list, tuple, set, frozenset)
+        ):
+            raise TypeError(
+                f"whitelist_assets must be a list/set of strings, got {type(v).__name__}"
             )
-        return frozenset()
+        for addr in v:
+            if not isinstance(addr, str):
+                raise TypeError(
+                    f"whitelist_assets elements must be strings, got {type(addr).__name__}"
+                )
+        return frozenset(_validate_evm_address(addr, "whitelist_assets") for addr in v)
 
     @field_validator("whitelist_networks", mode="before")
     @classmethod
     def _validate_networks(cls, v: object) -> frozenset[str]:
-        if isinstance(v, (list, tuple, set, frozenset)):
-            return frozenset(_validate_caip2(n) for n in v)
-        return frozenset()
+        if v is None:
+            return frozenset()
+        if isinstance(v, (str, bytes)) or not isinstance(
+            v, (list, tuple, set, frozenset)
+        ):
+            raise TypeError(
+                f"whitelist_networks must be a list/set of strings, got {type(v).__name__}"
+            )
+        for net in v:
+            if not isinstance(net, str):
+                raise TypeError(
+                    f"whitelist_networks elements must be strings, got {type(net).__name__}"
+                )
+        return frozenset(_validate_caip2(n) for n in v)
 
     @field_validator("whitelist_domains", mode="before")
     @classmethod
     def _normalise_domains(cls, v: object) -> frozenset[str]:
-        if isinstance(v, (list, tuple, set, frozenset)):
-            return frozenset(d.lower() for d in v)
-        return frozenset()
+        if v is None:
+            return frozenset()
+        if isinstance(v, (str, bytes)) or not isinstance(
+            v, (list, tuple, set, frozenset)
+        ):
+            raise TypeError(
+                f"whitelist_domains must be a list/set of strings, got {type(v).__name__}"
+            )
+        for dom in v:
+            if not isinstance(dom, str):
+                raise TypeError(
+                    f"whitelist_domains elements must be strings, got {type(dom).__name__}"
+                )
+        return frozenset(_normalize_domain_host(d) for d in v)
 
 
 # ---------------------------------------------------------------------------
@@ -244,6 +310,23 @@ class PaymentRequest(BaseModel):
     @classmethod
     def _validate_network(cls, v: str) -> str:
         return _validate_caip2(v)
+
+    @field_validator("domain", mode="before")
+    @classmethod
+    def _normalise_domain(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            raise TypeError(f"domain must be str, got {type(v).__name__}")
+        return _normalize_domain_host(v)
+
+    @field_validator("ttl_seconds", mode="before")
+    @classmethod
+    def _validate_ttl(cls, v: object) -> int:
+        val = _validate_positive_int(v, "ttl_seconds")
+        if val > 86400:  # Maximum 24 hours
+            raise ValueError("ttl_seconds cannot exceed 86400 (24 hours)")
+        return val
 
 
 # ---------------------------------------------------------------------------

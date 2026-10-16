@@ -62,10 +62,25 @@ class SQLitePolicyEngine(IPolicyEngine):
         self._sync_policy_record()
 
     def _sync_policy_record(self) -> None:
-        """Upsert the policy configuration into the ap_policy table."""
+        """
+        Upsert the policy configuration into the ap_policy table.
+        Preserves existing is_frozen, breaker_state, and tripped_at from DB
+        so a restart does not overwrite operator actions (P1-2, P1-3).
+        """
         now = self._clock()
         cfg = self._config
         with self._conn:
+            cursor = self._conn.cursor()
+            cursor.execute("PRAGMA table_info(ap_policy);")
+            cols = {row[1] for row in cursor.fetchall()}
+            if "consecutive_failures" not in cols:
+                try:
+                    cursor.execute(
+                        "ALTER TABLE ap_policy ADD COLUMN consecutive_failures INTEGER NOT NULL DEFAULT 0;"
+                    )
+                except sqlite3.OperationalError:
+                    # Column already added by concurrent thread or schema init
+                    pass
             self._conn.execute(
                 """
                 INSERT INTO ap_policy (
@@ -90,7 +105,8 @@ class SQLitePolicyEngine(IPolicyEngine):
                     circuit_max_rpm = excluded.circuit_max_rpm,
                     circuit_consecutive_failures = excluded.circuit_consecutive_failures,
                     circuit_cooldown_seconds = excluded.circuit_cooldown_seconds,
-                    is_frozen = excluded.is_frozen,
+                    -- If DB already has is_frozen=1 or custom breaker state, preserve it (P1-2)
+                    is_frozen = MAX(ap_policy.is_frozen, excluded.is_frozen),
                     updated_at = excluded.updated_at;
                 """,
                 (
@@ -114,16 +130,31 @@ class SQLitePolicyEngine(IPolicyEngine):
                     now,
                 ),
             )
+            cursor.execute(
+                "SELECT consecutive_failures FROM ap_policy WHERE id = ?;", (cfg.id,)
+            )
+            row = cursor.fetchone()
+            if row:
+                self._consecutive_failures = row[0]
 
-    def _query_lifetime_spent(self, cursor: sqlite3.Cursor) -> int:
-        """Sum of all COMMITTED amounts for this policy since inception."""
+    def _query_lifetime_spent(self, cursor: sqlite3.Cursor, now_seconds: int) -> int:
+        """
+        Calculate total lifetime commitment under this policy:
+        Sum of all COMMITTED amounts + active RESERVED where expires_at >= now_seconds.
+        Ensures concurrent reservations cannot break the lifetime budget ceiling (P0-1).
+        """
         cursor.execute(
             """
             SELECT COALESCE(SUM(amount_base_units), 0)
             FROM ap_budget_ledger
-            WHERE policy_id = ? AND state = 'COMMITTED';
+            WHERE policy_id = ?
+              AND (
+                  state = 'COMMITTED'
+                  OR
+                  (state = 'RESERVED' AND expires_at >= ?)
+              );
             """,
-            (self._config.id,),
+            (self._config.id, now_seconds),
         )
         row = cursor.fetchone()
         return int(row[0]) if row and row[0] is not None else 0
@@ -131,7 +162,8 @@ class SQLitePolicyEngine(IPolicyEngine):
     def _query_rolling_usage(self, cursor: sqlite3.Cursor, now_seconds: int) -> int:
         """
         Calculate current rolling usage per P0-6:
-        COMMITTED in [now - 86400, now] + active RESERVED where expires_at > now.
+        COMMITTED in [now - 86400, now] + active RESERVED where expires_at >= now.
+        Unifies expiration boundary with commit() at now == expires_at (P0-2).
         """
         cursor.execute(
             """
@@ -141,7 +173,7 @@ class SQLitePolicyEngine(IPolicyEngine):
               AND (
                   (state = 'COMMITTED' AND created_at >= ? - 86400)
                   OR
-                  (state = 'RESERVED' AND expires_at > ?)
+                  (state = 'RESERVED' AND expires_at >= ?)
               );
             """,
             (self._config.id, now_seconds, now_seconds),
@@ -172,7 +204,7 @@ class SQLitePolicyEngine(IPolicyEngine):
             """
             SELECT COUNT(*)
             FROM ap_budget_ledger
-            WHERE policy_id = ? AND state = 'RESERVED' AND expires_at > ?;
+            WHERE policy_id = ? AND state = 'RESERVED' AND expires_at >= ?;
             """,
             (self._config.id, now_seconds),
         )
@@ -227,25 +259,53 @@ class SQLitePolicyEngine(IPolicyEngine):
         """
         Record a transaction or upstream delivery failure.
 
-        Increments consecutive failures and trips breaker to OPEN if threshold reached
-        or if in HALF_OPEN (test probe failed).
+        Increments consecutive failures in ap_policy (persisted across instances)
+        and trips breaker to OPEN if threshold reached or if in HALF_OPEN (test probe failed) (P1-3).
         """
         now = self._clock()
         current_state = self.get_breaker_state()
-        self._consecutive_failures += 1
+        with self._conn:
+            cursor = self._conn.cursor()
+            cursor.execute(
+                """
+                SELECT consecutive_failures, circuit_consecutive_failures
+                FROM ap_policy
+                WHERE id = ?;
+                """,
+                (self._config.id,),
+            )
+            row = cursor.fetchone()
+            curr_fails = row[0] if row else self._consecutive_failures
+            threshold = (
+                row[1]
+                if (row and row[1])
+                else self._config.circuit_consecutive_failures
+            )
 
-        if (
-            current_state == BreakerState.HALF_OPEN
-            or self._consecutive_failures >= self._config.circuit_consecutive_failures
-        ):
-            with self._conn:
-                self._conn.execute(
+            new_failures = curr_fails + 1
+            self._consecutive_failures = new_failures
+
+            should_trip = (
+                current_state == BreakerState.HALF_OPEN or new_failures >= threshold
+            )
+
+            if should_trip:
+                cursor.execute(
                     """
                     UPDATE ap_policy
-                    SET breaker_state = 'OPEN', tripped_at = ?, updated_at = ?
+                    SET consecutive_failures = ?, breaker_state = 'OPEN', tripped_at = ?, updated_at = ?
                     WHERE id = ?;
                     """,
-                    (now, now, self._config.id),
+                    (new_failures, now, now, self._config.id),
+                )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE ap_policy
+                    SET consecutive_failures = ?, updated_at = ?
+                    WHERE id = ?;
+                    """,
+                    (new_failures, now, self._config.id),
                 )
 
     def reset_breaker(self) -> None:
@@ -256,7 +316,7 @@ class SQLitePolicyEngine(IPolicyEngine):
             self._conn.execute(
                 """
                 UPDATE ap_policy
-                SET breaker_state = 'CLOSED', tripped_at = NULL, updated_at = ?
+                SET breaker_state = 'CLOSED', consecutive_failures = 0, tripped_at = NULL, updated_at = ?
                 WHERE id = ?;
                 """,
                 (now, self._config.id),
@@ -300,8 +360,19 @@ class SQLitePolicyEngine(IPolicyEngine):
             # SECURITY-REVIEW: BEGIN IMMEDIATE acquires exclusive write lock immediately
             cursor.execute("BEGIN IMMEDIATE;")
 
-            # Step 1: Policy Administrative Lock (is_frozen)
-            if self._config.is_frozen:
+            # Step 1: Policy Administrative Lock (is_frozen) from authoritative DB record (P1-2)
+            cursor.execute(
+                "SELECT is_frozen, breaker_state, tripped_at FROM ap_policy WHERE id = ?;",
+                (self._config.id,),
+            )
+            row = cursor.fetchone()
+            is_frozen = (row[0] == 1) if row else self._config.is_frozen
+            current_breaker = (
+                BreakerState(row[1]) if row and row[1] else BreakerState.CLOSED
+            )
+            tripped_at = row[2] if row else None
+
+            if is_frozen:
                 cursor.execute("ROLLBACK;")
                 return PolicyDecision(
                     approved=False,
@@ -309,14 +380,6 @@ class SQLitePolicyEngine(IPolicyEngine):
                 )
 
             # Step 2: Circuit Breaker State & RPM Check
-            cursor.execute(
-                "SELECT breaker_state, tripped_at FROM ap_policy WHERE id = ?;",
-                (self._config.id,),
-            )
-            row = cursor.fetchone()
-            current_breaker = BreakerState(row[0]) if row else BreakerState.CLOSED
-            tripped_at = row[1] if row else None
-
             # Check cooldown transition to HALF_OPEN
             if (
                 current_breaker == BreakerState.OPEN
@@ -369,7 +432,7 @@ class SQLitePolicyEngine(IPolicyEngine):
                 )
 
             # Step 3-5: Evaluate static rules (Format, Whitelist, Single-Tx Cap, Lifetime)
-            lifetime_spent = self._query_lifetime_spent(cursor)
+            lifetime_spent = self._query_lifetime_spent(cursor, now)
             static_res = evaluate_static_rules(
                 config=self._config,
                 request=req,
@@ -430,14 +493,22 @@ class SQLitePolicyEngine(IPolicyEngine):
                 available_after=new_available,
             )
         except sqlite3.IntegrityError:
-            cursor.execute("ROLLBACK;")
+            try:
+                if self._conn.in_transaction:
+                    cursor.execute("ROLLBACK;")
+            except sqlite3.OperationalError:
+                pass
             # Duplicate intent_id or unique constraint violation -> fail closed
             return PolicyDecision(
                 approved=False,
                 error_code=PolicyErrorCode.DAILY_BUDGET_EXCEEDED,
             )
         except Exception:  # noqa: BLE001
-            cursor.execute("ROLLBACK;")
+            try:
+                if self._conn.in_transaction:
+                    cursor.execute("ROLLBACK;")
+            except sqlite3.OperationalError:
+                pass
             # Fail closed on any other unexpected DB or system errors
             return PolicyDecision(
                 approved=False,
@@ -488,13 +559,16 @@ class SQLitePolicyEngine(IPolicyEngine):
                 (now, intent_id),
             )
 
-            # Success resets consecutive failure count & closes breaker if HALF_OPEN
+            # Success resets consecutive failure count & closes breaker if HALF_OPEN (P1-3)
             self._consecutive_failures = 0
             cursor.execute(
                 """
                 UPDATE ap_policy
-                SET breaker_state = 'CLOSED', tripped_at = NULL, updated_at = ?
-                WHERE id = ? AND breaker_state = 'HALF_OPEN';
+                SET consecutive_failures = 0,
+                    breaker_state = CASE WHEN breaker_state = 'HALF_OPEN' THEN 'CLOSED' ELSE breaker_state END,
+                    tripped_at = CASE WHEN breaker_state = 'HALF_OPEN' THEN NULL ELSE tripped_at END,
+                    updated_at = ?
+                WHERE id = ?;
                 """,
                 (now, self._config.id),
             )
@@ -503,7 +577,8 @@ class SQLitePolicyEngine(IPolicyEngine):
             raise
         except Exception:
             try:
-                cursor.execute("ROLLBACK;")
+                if self._conn.in_transaction:
+                    cursor.execute("ROLLBACK;")
             except sqlite3.OperationalError:
                 pass
             raise
@@ -556,7 +631,8 @@ class SQLitePolicyEngine(IPolicyEngine):
             raise
         except Exception:
             try:
-                cursor.execute("ROLLBACK;")
+                if self._conn.in_transaction:
+                    cursor.execute("ROLLBACK;")
             except sqlite3.OperationalError:
                 pass
             raise

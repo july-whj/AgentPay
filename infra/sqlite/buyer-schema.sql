@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS ap_policy (
     circuit_max_rpm INTEGER NOT NULL DEFAULT 15,
     circuit_consecutive_failures INTEGER NOT NULL DEFAULT 5,
     circuit_cooldown_seconds INTEGER NOT NULL DEFAULT 300,
+    consecutive_failures INTEGER NOT NULL DEFAULT 0,
     breaker_state TEXT NOT NULL DEFAULT 'CLOSED' CHECK (breaker_state IN ('CLOSED', 'OPEN', 'HALF_OPEN')),
     tripped_at INTEGER,                     -- Unix seconds
     is_frozen INTEGER NOT NULL DEFAULT 0 CHECK (is_frozen IN (0, 1)), -- 0: false, 1: true
@@ -70,9 +71,9 @@ CREATE TABLE IF NOT EXISTS ap_buyer_intent (
     updated_at INTEGER NOT NULL             -- Unix seconds
 );
 
--- Indexes for high-performance rolling sum and state lookups
+-- Indexes for high-performance rolling sum and idempotency uniqueness (P0-3, P2-1)
 CREATE INDEX IF NOT EXISTS idx_budget_rolling_sum 
-ON ap_budget_ledger (wallet_address, state, created_at, expires_at);
+ON ap_budget_ledger (policy_id, state, created_at, expires_at);
 
-CREATE INDEX IF NOT EXISTS idx_buyer_intent_lookup 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_buyer_intent_idempotency 
 ON ap_buyer_intent (payer_address, idempotency_key);
