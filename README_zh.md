@@ -8,6 +8,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://github.com/july-whj/AgentPay"><img src="https://img.shields.io/badge/Protocol-x402_V2-orange.svg" alt="x402 V2"></a>
   <a href="https://pnpm.io/"><img src="https://img.shields.io/badge/Maintained%20with-pnpm-cc00ff.svg" alt="pnpm"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F.svg" alt="Spring Boot"></a>
   <a href="https://ethereum.org/en/developers/docs/standards/tokens/erc-20/"><img src="https://img.shields.io/badge/Standards-EIP--712%20%7C%20EIP--3009-brightgreen.svg" alt="EIP-712 / EIP-3009"></a>
 </p>
@@ -20,13 +21,13 @@
 
 ## 💡 什么是 AgentPay？
 
-**AgentPay** 是一套专为自主 AI Agent、大语言模型应用与现代 API 生态系统打造的开源、非托管支付基础设施与财务安全层。基于 **HTTP 402 Payment Required (x402 V2)** 协议，AgentPay 提供了统一的跨语言双技术栈桥梁（**TypeScript + Java / Spring Boot**），允许智能体自主采购工具、数据与算力资源，同时在底层强制实施由人类定义的严苛财务安全防线。
+**AgentPay** 是一套专为自主 AI Agent、大语言模型应用与现代 API 生态系统打造的开源、非托管支付基础设施与财务安全层。基于 **HTTP 402 Payment Required (x402 V2)** 协议，AgentPay 提供了统一的多语言技术栈桥梁（**TypeScript + Python + Java / Spring Boot**），允许智能体自主采购工具、数据与算力资源，同时在底层强制实施由人类定义的严苛财务安全防线。
 
 AgentPay **绝非**简单的支付 SDK 封装。它专为解决真实 Agent 交互场景下的分布式系统复杂性与资金风险工程难题而生：
 * **金融幻觉与自我授权风险**：LLM 可能会产生幻觉、陷入递归死循环或发起未经授权的巨额交易。
 * **RPC 超时与双花隐患**：区块链节点与分布式 HTTP 网络常出现偶发延迟与超时，但网络超时并不等同于支付失败。
 * **Gas 治理负担**：AI Agent 不应为了支付 0.001 USDC 的 API 调用费用而被迫管理波动的原生 Gas 代币（如 ETH/MATIC）。
-* **技术栈生态割裂**：AI Agent 与上层应用多以 TypeScript/Python 为主，而企业级 API 商业化变现后端则广泛依托于 Java / Spring Boot。
+* **技术栈生态割裂**：AI Agent 与上层框架以 Python（LangChain、CrewAI、AutoGen、LlamaIndex）和 TypeScript 为主，而企业级 API 商业化变现后端则广泛依托于 Java / Spring Boot。
 
 ---
 
@@ -50,10 +51,11 @@ LLM 可以提议调用工具或发起交易，但**绝不能自我批准或修�
 * AI Agent 仅需生成经密码学签名的链下授权（例如 USDC 的 `TransferWithAuthorization`）。
 * 由 Facilitator（协调清算节点）代付 Gas 并批量上链提交，免除 Agent 开发者维护原生代币余额的繁琐负担。
 
-### 4. 跨语言对齐（TypeScript + Java / Spring Boot）
+### 4. 跨语言对齐（TypeScript + Python + Java / Spring Boot）
 * **TypeScript 生态**：标准客户端 SDK、透明 HTTP 402 拦截器（`@agentpay/agent-client`）、Express 中间件、Fastify 插件以及 MCP（Model Context Protocol）付费工具包装器。
+* **Python 生态**：原生 Client SDK（`agentpay`）、透明网络拦截器（`httpx`、`requests`、`aiohttp`）、一等公民支持的 LangChain / CrewAI / LlamaIndex 付费工具包装器以及 FastAPI 卖方中间件。
 * **Java / Spring Boot 生态**：企业级提供商 SDK（`agentpay-spring-boot-starter`）、声明式 `@RequiresPayment` 方法注解以及高吞吐 Facilitator 基础设施。
-* **共享测试向量**：跨语言一致性套件（`specs/conformance/test-vectors/`），确保协议解析与密码学验证 100% 行为一致。
+* **共享测试向量**：跨语言一致性套件（`specs/conformance/test-vectors/`），确保协议解析与密码学验证在三种语言运行时下 100% 行为一致。
 
 ---
 
@@ -111,6 +113,13 @@ AgentPay/
 │   ├── mcp/                         # Model Context Protocol 付费工具封装
 │   ├── agent-client/                # 买方 Agent 透明 HTTP 拦截器
 │   └── testing/                     # 共享测试固件与 Mock 模拟套件
+│
+├── python/                          # Python SDK (Poetry / Hatch / UV workspace)
+│   ├── agentpay-core/               # 领域模型、x402 V2 编解码与类型注解
+│   ├── agentpay-client/             # 透明 httpx/requests/aiohttp 402 拦截器
+│   ├── agentpay-policy/             # Python 版财务防火墙与预算引擎
+│   ├── agentpay-fastapi/            # FastAPI 卖方中间件
+│   └── agentpay-langchain/          # LangChain、CrewAI 与 LlamaIndex 付费工具包装
 │
 ├── java/                            # Java / Spring Boot (Gradle multi-project)
 │   ├── agentpay-core/               # 共享领域实体与状态机定义

@@ -2,6 +2,7 @@
 
 This directory contains standardized, language-agnostic JSON test vectors used to guarantee 100% cryptographic and protocol parity between:
 * **TypeScript Reference Implementation** (`packages/`)
+* **Python AI Ecosystem Implementation** (`python/`)
 * **Java / Spring Boot Provider Implementation** (`java/`)
 
 ---
@@ -21,7 +22,7 @@ specs/conformance/test-vectors/
 ## 2. Test Vector Categories
 
 ### 2.1 `eip712-authorization.json`
-* **Purpose:** Validates that Web3j (Java) and Viem/Ethers (TypeScript) generate and verify identical struct hashes (`hashStruct`), domain separators, and recover the exact same signer address from raw (v, r, s) tuples.
+* **Purpose:** Validates that Viem (TypeScript), `eth-account` (Python), and Web3j (Java) generate and verify identical struct hashes (`hashStruct`), domain separators, and recover the exact same signer address from raw (v, r, s) tuples.
 * **Key Fields:**
   * `domain`: Token name, version, chain ID, contract address.
   * `message`: `from`, `to`, `value`, `validAfter`, `validBefore`, `nonce`.

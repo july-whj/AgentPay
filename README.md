@@ -8,6 +8,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License: Apache-2.0"></a>
   <a href="https://github.com/july-whj/AgentPay"><img src="https://img.shields.io/badge/Protocol-x402_V2-orange.svg" alt="x402 V2"></a>
   <a href="https://pnpm.io/"><img src="https://img.shields.io/badge/Maintained%20with-pnpm-cc00ff.svg" alt="pnpm"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white" alt="Python 3.10+"></a>
   <a href="https://spring.io/projects/spring-boot"><img src="https://img.shields.io/badge/Spring%20Boot-3.x-6DB33F.svg" alt="Spring Boot"></a>
   <a href="https://ethereum.org/en/developers/docs/standards/tokens/erc-20/"><img src="https://img.shields.io/badge/Standards-EIP--712%20%7C%20EIP--3009-brightgreen.svg" alt="EIP-712 / EIP-3009"></a>
 </p>
@@ -20,13 +21,13 @@
 
 ## 💡 What is AgentPay?
 
-**AgentPay** is an open-source, non-custodial payment infrastructure and financial security layer built for autonomous AI agents, LLM applications, and modern API ecosystems. Built on top of the **HTTP 402 Payment Required (x402 V2)** protocol, AgentPay provides a unified dual-stack bridge (**TypeScript + Java/Spring Boot**) allowing agents to autonomously purchase tools, data, and compute resources while enforcing strict human-defined financial guardrails.
+**AgentPay** is an open-source, non-custodial payment infrastructure and financial security layer built for autonomous AI agents, LLM applications, and modern API ecosystems. Built on top of the **HTTP 402 Payment Required (x402 V2)** protocol, AgentPay provides a unified polyglot bridge (**TypeScript + Python + Java/Spring Boot**) allowing agents to autonomously purchase tools, data, and compute resources while enforcing strict human-defined financial guardrails.
 
 AgentPay is **NOT** a simple wrapper around payment SDKs. It addresses core distributed systems and risk engineering challenges in real-world agentic transactions:
 * **Financial Hallucination & Self-Granting**: Agents might hallucinate, enter recursive loops, or attempt unauthorized multi-thousand dollar transactions.
 * **RPC Timeouts & Double-Spending**: Blockchains and distributed HTTP networks suffer from latency spikes. A network timeout does not mean a transaction failed.
 * **Gas Token Management Burden**: AI agents should not need to manage volatile gas tokens (ETH/MATIC) just to pay for 0.001 USDC API queries.
-* **Language Ecosystem Fragmentation**: AI agents and client frameworks live primarily in TypeScript/Python, while enterprise API monetization backends live in Java/Spring Boot.
+* **Language Ecosystem Fragmentation**: AI agents and client frameworks live primarily in Python (LangChain, CrewAI, AutoGen) and TypeScript, while enterprise API monetization backends live in Java/Spring Boot.
 
 ---
 
@@ -50,10 +51,11 @@ Traditional e-commerce bundles payment and delivery into a single lifecycle. Age
 * AI Agents only generate cryptographically verified off-chain authorizations (e.g., USDC `TransferWithAuthorization`).
 * Facilitator nodes sponsor gas and submit batches on-chain, freeing Agent developers from maintaining volatile native gas balances.
 
-### 4. Cross-Language Parity (TypeScript + Java/Spring Boot)
+### 4. Cross-Language Parity (TypeScript + Python + Java/Spring Boot)
 * **TypeScript Ecosystem**: Reference client SDK, transparent HTTP 402 interceptors (`@agentpay/agent-client`), Express middleware, Fastify plugins, and MCP (Model Context Protocol) tool wrappers.
+* **Python Ecosystem**: Native client SDK (`agentpay`), transparent transport interceptors (`httpx`, `requests`, `aiohttp`), first-class LangChain / CrewAI / LlamaIndex paid tool wrappers, and FastAPI middleware.
 * **Java / Spring Boot Ecosystem**: Enterprise-grade provider SDK (`agentpay-spring-boot-starter`), declarative `@RequiresPayment` method annotations, and high-throughput Facilitator services.
-* **Shared Test Vectors**: Cross-language conformance suite (`specs/conformance/test-vectors/`) ensuring 100% protocol and cryptographic compatibility.
+* **Shared Test Vectors**: Cross-language conformance suite (`specs/conformance/test-vectors/`) ensuring 100% protocol and cryptographic compatibility across all three runtimes.
 
 ---
 
@@ -111,6 +113,13 @@ AgentPay/
 │   ├── mcp/                         # Model Context Protocol paid tool wrapper
 │   ├── agent-client/                # Transparent HTTP interceptor for Buyer Agents
 │   └── testing/                     # Shared test fixtures & mocks
+│
+├── python/                          # Python SDK (Poetry / Hatch / UV workspace)
+│   ├── agentpay-core/               # Domain models, x402 V2 codecs & typing
+│   ├── agentpay-client/             # Transparent httpx/requests/aiohttp 402 interceptor
+│   ├── agentpay-policy/             # Python Financial Firewall & budget engine
+│   ├── agentpay-fastapi/            # FastAPI provider middleware
+│   └── agentpay-langchain/          # LangChain, CrewAI & LlamaIndex tool wrappers
 │
 ├── java/                            # Java / Spring Boot (Gradle multi-project)
 │   ├── agentpay-core/               # Shared domain entities & state machines

@@ -12,8 +12,9 @@
 * **GitHub Repository:** [https://github.com/july-whj/AgentPay](https://github.com/july-whj/AgentPay)
 * **Tagline:** The Open-Source Payment Infrastructure & Financial Firewall for Autonomous AI Agents
 * **Core Protocol:** x402 V2 (Standard HTTP 402 Payment Required protocol)
-* **Dual Tech Stack:**
+* **Polyglot Tech Stack:**
   * **TypeScript:** Reference implementation, Buyer Agent Client SDK, Express/Fastify Middleware, MCP Transport Interceptor.
+  * **Python:** AI Agent Ecosystem SDK (`agentpay-python`), transparent HTTP interceptors (`httpx`, `requests`, `aiohttp`), LangChain / CrewAI / LlamaIndex tool wrappers, FastAPI middleware.
   * **Java / Spring Boot:** Enterprise API Provider SDK (`agentpay-spring-boot-starter`), declarative `@RequiresPayment` annotations, robust Facilitator services.
 * **Database:** PostgreSQL (Transactional guarantees, atomic quota deduction, row-level locks).
 * **Open Source License:** Apache-2.0
@@ -31,8 +32,8 @@ AgentPay is **NOT** a simple wrapper around the x402 SDK. It solves real-world e
 2. **Decoupled Tri-State Machine:**
    * Strictly decouples `PaymentIntent`, `Settlement` (on-chain/protocol), and `Fulfillment` (API resource delivery).
    * RPC timeouts do **not** imply payment failure. Prevents double-spending and ensures graceful recovery if delivery fails after settlement.
-3. **Cross-Language Parity (TS + Java):**
-   * Bridges AI developers (TypeScript) with enterprise API providers (Java / Spring Boot).
+3. **Cross-Language Parity (TS + Python + Java):**
+   * Bridges modern AI agent frameworks (Python & TypeScript) with enterprise API providers (Java / Spring Boot).
    * Shared test vectors (`specs/conformance/test-vectors/`) ensure identical protocol behavior across languages.
 4. **Gasless Micro-Settlement (EIP-712 / EIP-3009):**
    * The Agent generates off-chain EIP-712 signatures for compatible stablecoins (e.g., USDC `TransferWithAuthorization`).
@@ -63,6 +64,13 @@ agentpay/
 │   ├── mcp/                         # Model Context Protocol paid tool wrapper
 │   ├── agent-client/                # Transparent HTTP interceptor for Buyer Agents
 │   └── testing/                     # Shared test fixtures & mocks
+│
+├── python/                          # Python SDK (Poetry / Hatch / UV workspace)
+│   ├── agentpay-core/               # Domain models, x402 V2 codecs & typing
+│   ├── agentpay-client/             # Transparent httpx/requests/aiohttp 402 interceptor
+│   ├── agentpay-policy/             # Python Financial Firewall & budget engine
+│   ├── agentpay-fastapi/            # FastAPI provider middleware
+│   └── agentpay-langchain/          # LangChain, CrewAI & LlamaIndex tool wrappers
 │
 ├── java/                            # Java / Spring Boot (Gradle multi-project)
 │   ├── agentpay-core/

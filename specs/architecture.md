@@ -124,13 +124,14 @@ sequenceDiagram
 
 ---
 
-## 5. Dual-Stack Parity Architecture
+## 5. Polyglot Parity Architecture (TypeScript + Python + Java)
 
 To provide an identical developer experience regardless of language:
 * **TypeScript Stack (`packages/`):** Targeted at AI agents (Node.js, Bun, Browser, MCP servers) and modern JS microservices.
+* **Python Stack (`python/`):** Targeted at the primary AI Agent and LLM framework ecosystem (LangChain, CrewAI, AutoGen, LlamaIndex), featuring transparent HTTP interceptors (`httpx`, `requests`, `aiohttp`) and FastAPI middleware.
 * **Java Stack (`java/`):** Targeted at enterprise SaaS providers, Spring Cloud gateways, and high-throughput corporate backends.
 * **Shared Conformance Vectors (`specs/conformance/test-vectors/`):**
-  * EIP-712 domain separator serialization.
+  * EIP-712 domain separator serialization across Viem (TS), `eth-account`/`web3.py` (Python), and Web3j (Java).
   * x402 V2 challenge parser and signature encoder.
   * State machine transition edge cases.
-  * Policy budget deduction math with 64-bit integer overflow protection.
+  * Policy budget deduction math with 64-bit integer / BigInteger overflow protection.
