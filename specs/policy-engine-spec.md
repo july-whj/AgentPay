@@ -1,9 +1,9 @@
 # AgentPay Policy Engine Specification
 
-> **Specification Version:** 1.0.0  
-> **Status:** Standard  
+> **Specification Version:** 1.1.0  
+> **Status:** Draft  
 > **Target Implementations:** Python SDK (`agentpay.policy`), SQLite Ledger  
-> **Task Tracking:** 2026 Plan Milestone M1 (Tasks T1.3, T2.1, T2.2, T2.3, T2.4)
+> **Task Tracking:** 2026 Plan Milestone M1 (Tasks T1.3, T2.1, T2.2, T2.3, T2.4, P0-6, P1-11, P1-12, P1-18, P1-21, P1-23)
 
 ---
 
@@ -13,73 +13,71 @@ The **Policy Engine** operates as an independent, deterministic financial firewa
 
 ```mermaid
 graph TD
-    Request[Payment Challenge Received] --> Step1{1. Circuit Breaker Check}
-    Step1 -->|State == OPEN| DenyBreaker[Reject: CircuitBreakerOpenException]
-    Step1 -->|State == CLOSED / HALF_OPEN| Step2{2. Whitelist Matrix}
-    Step2 -->|Payee / Asset / Network Unlisted| DenyWhitelist[Reject: WhitelistViolationException]
-    Step2 -->|Whitelisted| Step3{3. Single-Tx Cap}
-    Step3 -->|Amount > max_per_tx| DenyCap[Reject: SingleTxCapExceededException]
-    Step3 -->|Amount <= max_per_tx| Step4{4. Atomic 24h Budget Check}
-    Step4 -->|Available < Amount| DenyBudget[Reject: DailyBudgetExceededException]
-    Step4 -->|Available >= Amount| Reserve[Atomic Reserve: Insert Ledger Slot]
-    Reserve --> WakeSigner[Emit ReservationToken -> Unlock LocalSigner]
+    Req[Payment Challenge Received] --> S1{1. Freeze Check}
+    S1 -->|is_frozen == 1| D1[Reject: POLICY_FROZEN]
+    S1 -->|is_frozen == 0| S2{2. Circuit Breaker}
+    S2 -->|State == OPEN| D2[Reject: CIRCUIT_BREAKER_OPEN]
+    S2 -->|State == CLOSED/HALF_OPEN| S3{3. Input Format}
+    S3 -->|amount <= 0 or not int| D3[Reject: INVALID_AMOUNT_FORMAT]
+    S3 -->|Valid int| S4{4. Whitelist Matrix}
+    S4 -->|Network / Asset / Payee / Domain unlisted| D4[Reject: *_NOT_WHITELISTED]
+    S4 -->|Whitelisted| S5{5. Single-Tx Cap}
+    S5 -->|amount > max_per_tx| D5[Reject: SINGLE_TX_CAP_EXCEEDED]
+    S5 -->|amount <= max_per_tx| S6{6. Lifetime Budget}
+    S6 -->|Lifetime spent + amount > limit| D6[Reject: LIFETIME_BUDGET_EXCEEDED]
+    S6 -->|Lifetime OK| S7{7. 24h Rolling Budget}
+    S7 -->|Available < amount| D7[Reject: DAILY_BUDGET_EXCEEDED]
+    S7 -->|Available >= amount| Pass[Atomic Reservation Slot Inserted]
+    Pass --> Token[Emit ReservationToken -> Unlock LocalSigner]
 ```
 
 ---
 
-## 2. Policy Schema Definition
+## 2. Standardized Error Codes (Language-Agnostic, P1-18)
 
-The policy configuration is statically loaded from a YAML configuration file or programmatically initialized via Pydantic schema:
+All errors returned by the Policy Engine map to standard uppercase string codes:
 
-```yaml
-version: "1.0"
-policyId: "pol_dev_default"
-name: "Default Autonomous Agent Financial Firewall"
-
-# 1. Hard Monetary Limits (Integer base units; no floating point)
-limits:
-  maxPerTxBaseUnits: 1000000          # 1.0 USDC (6 decimals: 1,000,000)
-  rollingBudget24hBaseUnits: 10000000  # 10.0 USDC (6 decimals: 10,000,000)
-  lifetimeBudgetBaseUnits: 100000000   # 100.0 USDC (optional hard stop)
-
-# 2. Strict Whitelisting Matrix
-whitelists:
-  allowedPayees:
-    - "0x5A0b54D5dc17e0AadC383d2db43B0a0D3E029c4c"  # Checksummed EVM addresses
-  allowedAssets:
-    - "0x036CbD53842c5426634e7929541eC2318f3dCF7e"  # Base Sepolia USDC
-  allowedNetworks:
-    - "eip155:84532"                                  # Base Sepolia (CAIP-2)
-  allowedDomains:
-    - "api.weather-oracle.xyz"
-    - "gateway.internal"
-
-# 3. Anomaly & Infinite-Loop Circuit Breaker
-circuitBreaker:
-  maxRpm: 15                                          # Max requests allowed in 60s
-  consecutiveFailureThreshold: 5                      # Auto-trip after 5 consecutive 4xx/5xx
-  cooldownSeconds: 300                                # 5-minute cooldown before HALF_OPEN
-  autoFreezeOnBreaker: true                           # Require operator unlock on trip
-```
+| Error Code | HTTP Status Equivalent | Description |
+| :--- | :---: | :--- |
+| `POLICY_FROZEN` | 403 Forbidden | Policy is administratively frozen or locked by circuit breaker. |
+| `CIRCUIT_BREAKER_OPEN` | 429 Too Many Requests | Rate of spending or consecutive failures exceeded threshold. |
+| `INVALID_AMOUNT_FORMAT` | 400 Bad Request | Amount is non-integer, zero, negative, or malformed. |
+| `NETWORK_NOT_WHITELISTED` | 403 Forbidden | CAIP-2 network ID is not present in policy whitelist. |
+| `ASSET_NOT_WHITELISTED` | 403 Forbidden | Token contract address is not in policy whitelist. |
+| `PAYEE_NOT_WHITELISTED` | 403 Forbidden | Recipient address is not in policy whitelist. |
+| `DOMAIN_NOT_WHITELISTED` | 403 Forbidden | Target API domain is not in policy whitelist. |
+| `SINGLE_TX_CAP_EXCEEDED` | 400 Bad Request | Transaction amount exceeds `max_per_tx_base_units`. |
+| `LIFETIME_BUDGET_EXCEEDED` | 402 Payment Required | Aggregate lifetime spend ceiling reached. |
+| `DAILY_BUDGET_EXCEEDED` | 402 Payment Required | Rolling 24-hour window budget exhausted. |
+| `RESERVATION_EXPIRED` | 410 Gone | Quota reservation lease window (`expires_at`) elapsed. |
+| `RESERVATION_ALREADY_FINALIZED` | 409 Conflict | Attempted to release or double-commit a settled reservation. |
 
 ---
 
-## 3. Two-Phase Reservation Protocol (Reserve - Commit - Release)
+## 3. Evaluation Precedence & Short-Circuit Order (P1-21)
 
-To prevent race conditions across concurrent agent threads while protecting against unearned fund losses on downstream timeouts, the engine implements a strict **Two-Phase Reservation Protocol**:
+When a payment challenge arrives, the evaluation pipeline **MUST** evaluate rules in this strict sequential order, short-circuiting on the first failure:
 
-```mermaid
-stateDiagram-v2
-    [*] --> RESERVED: reserve(intent_id, amount)
-    RESERVED --> COMMITTED: commit(intent_id) [API returns 200 OK]
-    RESERVED --> RELEASED: release(intent_id) [Network error / Pre-flight abort]
-    RESERVED --> RELEASED: TTL Expired (> 300s) [Auto-healing cleanup]
-    COMMITTED --> [*]
-    RELEASED --> [*]
-```
+1. **Policy Administrative Lock (`is_frozen`):** If `is_frozen == 1`, immediately abort with `POLICY_FROZEN`.
+2. **Circuit Breaker State (`breaker_state`):**
+   * If `OPEN`, immediately abort with `CIRCUIT_BREAKER_OPEN`.
+   * If `HALF_OPEN`, permit only 1 in-flight test probe transaction.
+3. **Format & Precision Validation:**
+   * Validate `amount > 0` and `amount` is an integer base unit. If invalid, abort with `INVALID_AMOUNT_FORMAT`.
+4. **Whitelist Matrix (Order: Network $\to$ Asset $\to$ Payee $\to$ Domain):**
+   * If `network` not in whitelist $\to$ `NETWORK_NOT_WHITELISTED`.
+   * If `asset` not in whitelist $\to$ `ASSET_NOT_WHITELISTED`.
+   * If `payee` not in whitelist $\to$ `PAYEE_NOT_WHITELISTED`.
+   * If `domain` provided and not in whitelist $\to$ `DOMAIN_NOT_WHITELISTED`.
+5. **Single-Transaction Cap:** If `amount > max_per_tx_base_units` $\to$ `SINGLE_TX_CAP_EXCEEDED`.
+6. **Lifetime Budget Ceiling (if configured):** If $\text{TotalCommitted}_{\text{lifetime}} + \text{amount} > \text{lifetime\_budget\_base\_units}$ $\to$ `LIFETIME_BUDGET_EXCEEDED`.
+7. **24-Hour Rolling Budget Ledger:** Execute atomic reservation in `ap_budget_ledger`. If available quota $< \text{amount}$ $\to$ `DAILY_BUDGET_EXCEEDED`.
 
-### 3.1 Interface Contract & Semantics
+---
 
+## 4. Two-Phase Reservation Protocol Semantics (P0-1, P0-6)
+
+### 4.1 Interface Contract
 ```python
 class IPolicyEngine:
     def reserve(
@@ -89,71 +87,47 @@ class IPolicyEngine:
         payee: str,
         asset: str,
         network: str,
-        domain: str | None = None
+        domain: str | None = None,
+        ttl_seconds: int = 360
     ) -> ReservationToken:
-        """
-        Phase 1: Validates whitelist, cap, breaker, and atomically locks quota.
-        Raises PolicyViolationException subtypes if check fails.
-        """
+        """Atomically checks precedence rules and locks quota in ap_budget_ledger."""
         ...
 
     def commit(self, intent_id: str) -> None:
         """
-        Phase 2a: Confirms final payment execution. Moves quota from RESERVED to COMMITTED.
+        Transitions reservation from RESERVED to COMMITTED upon HTTP 200 OK.
         Idempotent: Subsequent calls for the same intent_id are no-ops.
         """
         ...
 
     def release(self, intent_id: str, reason: str | None = None) -> None:
         """
-        Phase 2b: Aborts reservation. Restores quota immediately to the available pool.
-        Idempotent: Subsequent calls for the same intent_id are no-ops.
-        """
-        ...
-
-    def cleanup_expired_reservations(self, ttl_seconds: int = 300) -> int:
-        """
-        Housekeeping: Scans for reservations older than ttl_seconds that were
-        never committed or released (e.g. agent crashed), and marks them RELEASED.
+        Transitions reservation from RESERVED to RELEASED.
+        Guarded: If intent was already COMMITTED, raises RESERVATION_ALREADY_FINALIZED.
+        Idempotent: Releasing an already RELEASED intent is a no-op.
         """
         ...
 ```
 
-### 3.2 Pre-Conditions & Invariants
-1. **Idempotent Reservations:** Calling `reserve()` with an existing `intent_id` that is already in `RESERVED` state returns the existing `ReservationToken` without deducting extra funds.
-2. **Terminal Inviolability:** Calling `release()` on an already `COMMITTED` intent **MUST** raise `ReservationAlreadyFinalizedException`.
-3. **Lease TTL:** Every reservation carries an `expires_at = now + 300s`. Quota locked by crashed processes is automatically reclaimed upon expiration.
+### 4.2 SQLite Atomic Reservation Query (P0-6)
+Executed within `BEGIN IMMEDIATE` transaction to guarantee process-level exclusivity:
 
----
-
-## 4. Mathematical Model for 24-Hour Rolling Budget
-
-Traditional midnight-reset budgets allow an attacker to spend the full budget at 23:59 and another full budget at 00:01. AgentPay enforces a continuous **Sliding-Window Rolling Budget**:
-
-$$\text{Committed}_{24h} = \sum \{ L.\text{amount} \mid L.\text{status} = \text{'COMMITTED'} \land L.\text{created\_at} \ge (T_{\text{now}} - 86400) \}$$
-
-$$\text{ActiveReserved} = \sum \{ L.\text{amount} \mid L.\text{status} = \text{'RESERVED'} \land L.\text{expires\_at} > T_{\text{now}} \}$$
-
-$$\text{AvailableBudget} = \text{RollingBudget}_{24h} - (\text{Committed}_{24h} + \text{ActiveReserved})$$
-
-**Decision Rule:**
-$$\text{If } \text{AvailableBudget} < \text{RequestedAmount} \implies \mathbf{REJECT}\ (\text{DailyBudgetExceededException})$$
-
-### SQLite Atomic Evaluation Statement
 ```sql
--- Atomically executed within BEGIN IMMEDIATE transaction
+-- Step 1: Calculate current committed spend in last 24h + active unexpired reservations
 SELECT 
     p.is_frozen,
+    p.breaker_state,
     p.max_per_tx_base_units,
     p.rolling_budget_24h_base_units,
-    COALESCE(SUM(l.amount), 0) AS total_locked
+    p.lifetime_budget_base_units,
+    COALESCE(SUM(l.amount_base_units), 0) AS current_rolling_usage
 FROM ap_policy p
-LEFT JOIN ap_policy_ledger l 
-    ON p.id = l.policy_id
+LEFT JOIN ap_budget_ledger l 
+    ON p.id = l.policy_id 
     AND (
-        (l.status = 'COMMITTED' AND l.created_at >= datetime('now', '-24 hours'))
-        OR 
-        (l.status = 'RESERVED' AND l.expires_at > datetime('now'))
+        (l.state = 'COMMITTED' AND l.created_at >= :now_seconds - 86400)
+        OR
+        (l.state = 'RESERVED' AND l.expires_at > :now_seconds)
     )
 WHERE p.id = :policy_id
 GROUP BY p.id;
@@ -161,52 +135,18 @@ GROUP BY p.id;
 
 ---
 
-## 5. Anomaly Circuit Breaker Algorithm
-
-The circuit breaker protects against infinite loops and upstream cascading failures:
+## 5. Circuit Breaker Specification (P1-12)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> CLOSED
-    CLOSED --> OPEN: Calls in last 60s > maxRpm OR 5 consecutive errors
-    OPEN --> HALF_OPEN: Cooldown elapsed (300s)
-    HALF_OPEN --> CLOSED: Test probe succeeds
-    HALF_OPEN --> OPEN: Test probe fails (Reset cooldown)
-    OPEN --> CLOSED: Manual operator unfreeze() command
+    [*] --> CLOSED: Initial state
+    CLOSED --> OPEN: Requests in last 60s > circuit_max_rpm OR 5 consecutive failures
+    OPEN --> HALF_OPEN: now >= tripped_at + circuit_cooldown_seconds (300s)
+    HALF_OPEN --> CLOSED: Test probe succeeds (HTTP 200)
+    HALF_OPEN --> OPEN: Test probe fails (Reset tripped_at = now)
+    OPEN --> CLOSED: Explicit operator unfreeze command
 ```
 
-### Transition Guards:
-* **`CLOSED` $\to$ `OPEN`**:
-  * Sliding log tracks request timestamps. If $\text{Count}(T > \text{now} - 60) > \text{maxRpm}$, transition to `OPEN`.
-  * If consecutive error counter reaches `consecutiveFailureThreshold`, transition to `OPEN`.
-* **`OPEN` State Behavior**:
-  * Instantly raises `CircuitBreakerOpenException` without database locks or network overhead.
-  * Records critical audit log with reason (`BURST_LOOP_DETECTED` or `CONSECUTIVE_ERRORS`).
-* **`HALF_OPEN` State Behavior**:
-  * Exactly 1 transaction is allowed through to test upstream health.
-  * If it receives 200 OK, reset error counter and return to `CLOSED`.
-  * If it fails or times out, return to `OPEN` for another full cooldown window.
-
----
-
-## 6. Exception Hierarchy
-
-All exceptions emitted by the policy engine are strongly typed to allow downstream caller handling:
-
-```text
-AgentPayException
-└── PolicyViolationException
-    ├── SingleTxCapExceededException
-    ├── DailyBudgetExceededException
-    ├── LifetimeBudgetExceededException
-    ├── WhitelistViolationException
-    │   ├── PayeeNotWhitelistedException
-    │   ├── AssetNotWhitelistedException
-    │   ├── NetworkNotWhitelistedException
-    │   └── DomainNotWhitelistedException
-    ├── CircuitBreakerOpenException
-    ├── PolicyFrozenException
-    └── ReservationException
-        ├── ReservationExpiredException
-        └── ReservationAlreadyFinalizedException
-```
+* **Persistence:** `breaker_state` and `tripped_at` are persisted in `ap_policy`.
+* **Auto-Quarantine:** When tripped, `breaker_state = 'OPEN'`, `tripped_at = now`.
+* **Probe Locking:** When in `HALF_OPEN`, only one reservation with `is_probe = 1` may be issued until settled.

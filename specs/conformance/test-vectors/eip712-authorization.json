@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "suite": "eip712-authorization-conformance",
-  "description": "Standard EIP-712 & EIP-3009 TransferWithAuthorization test vector for USDC on Base Sepolia",
+  "description": "Cryptographically verified EIP-712 & EIP-3009 test vectors for USDC on Base Sepolia",
   "domain": {
     "name": "USD Coin",
     "version": "2",
@@ -11,23 +11,53 @@
   "primaryType": "TransferWithAuthorization",
   "types": {
     "EIP712Domain": [
-      { "name": "name", "type": "string" },
-      { "name": "version", "type": "string" },
-      { "name": "chainId", "type": "uint256" },
-      { "name": "verifyingContract", "type": "address" }
+      {
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "name": "version",
+        "type": "string"
+      },
+      {
+        "name": "chainId",
+        "type": "uint256"
+      },
+      {
+        "name": "verifyingContract",
+        "type": "address"
+      }
     ],
     "TransferWithAuthorization": [
-      { "name": "from", "type": "address" },
-      { "name": "to", "type": "address" },
-      { "name": "value", "type": "uint256" },
-      { "name": "validAfter", "type": "uint256" },
-      { "name": "validBefore", "type": "uint256" },
-      { "name": "nonce", "type": "bytes32" }
+      {
+        "name": "from",
+        "type": "address"
+      },
+      {
+        "name": "to",
+        "type": "address"
+      },
+      {
+        "name": "value",
+        "type": "uint256"
+      },
+      {
+        "name": "validAfter",
+        "type": "uint256"
+      },
+      {
+        "name": "validBefore",
+        "type": "uint256"
+      },
+      {
+        "name": "nonce",
+        "type": "bytes32"
+      }
     ]
   },
   "testWallet": {
     "privateKey": "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-    "expectedSigner": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+    "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
   },
   "testCases": [
     {
@@ -37,13 +67,16 @@
         "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
         "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
         "value": "100000",
-        "validAfter": 1729000000,
-        "validBefore": 1729000300,
+        "validAfter": "1729000000",
+        "validBefore": "1729000300",
         "nonce": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
       },
-      "expectedHashes": {
-        "domainTypeString": "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)",
-        "messageTypeString": "TransferWithAuthorization(address from,address to,uint256 value,uint256 validAfter,uint256 validBefore,bytes32 nonce)"
+      "expectedSignature": {
+        "v": 27,
+        "r": "0x31207f584bc8e976a0ce72ea1c9c85cdb4da7686401c5b6efdc27040e5b0f22",
+        "s": "0x2eacb1d50c27d4f5052b776e4bb5f1b42ce5c17fb7f553d44d0c42105444f4f1",
+        "serialized": "031207f584bc8e976a0ce72ea1c9c85cdb4da7686401c5b6efdc27040e5b0f222eacb1d50c27d4f5052b776e4bb5f1b42ce5c17fb7f553d44d0c42105444f4f11b",
+        "recoveredAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
       }
     },
     {
@@ -53,10 +86,62 @@
         "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
         "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
         "value": "500000",
-        "validAfter": 1729000000,
-        "validBefore": 1729000300,
+        "validAfter": "1729000000",
+        "validBefore": "1729000300",
         "nonce": "0x0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      "expectedSignature": {
+        "v": 28,
+        "r": "0x4ac88c6d2b88f77c639687d18501a1e42b4d5b65429c30119fc9aaffc86b7f9",
+        "s": "0x3ddac13e07a7ecacf108678302096c3a27a09957370696bb0225c830c3e4644a",
+        "serialized": "04ac88c6d2b88f77c639687d18501a1e42b4d5b65429c30119fc9aaffc86b7f93ddac13e07a7ecacf108678302096c3a27a09957370696bb0225c830c3e4644a1c",
+        "recoveredAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
       }
+    },
+    {
+      "id": "TC_EIP712_03_MATCHES_X402_CHALLENGE",
+      "description": "0.05 USDC payment exactly matching x402 challenge TC_01",
+      "message": {
+        "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "value": "50000",
+        "validAfter": "1729000000",
+        "validBefore": "1729000300",
+        "nonce": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+      },
+      "expectedSignature": {
+        "v": 28,
+        "r": "0xd90ab6b36f43fea017b168106d443b874dbeaeec24a4c416b7abc38afa9baa83",
+        "s": "0x530e805bb1a29839651fac0cb1f3f1c05a7c659760488173ed1fd582819467e0",
+        "serialized": "d90ab6b36f43fea017b168106d443b874dbeaeec24a4c416b7abc38afa9baa83530e805bb1a29839651fac0cb1f3f1c05a7c659760488173ed1fd582819467e01c",
+        "recoveredAddress": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      }
+    },
+    {
+      "id": "TC_EIP712_NEGATIVE_01_TAMPERED_AMOUNT",
+      "description": "Altering value from 50000 to 5000000 without re-signing must fail address recovery",
+      "tamperedMessage": {
+        "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "to": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "value": "5000000",
+        "validAfter": "1729000000",
+        "validBefore": "1729000300",
+        "nonce": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+      },
+      "signatureFromTC03": "d90ab6b36f43fea017b168106d443b874dbeaeec24a4c416b7abc38afa9baa83530e805bb1a29839651fac0cb1f3f1c05a7c659760488173ed1fd582819467e01c",
+      "expectedBehavior": "RECOVERED_ADDRESS_MISMATCH"
+    },
+    {
+      "id": "TC_EIP712_NEGATIVE_02_CROSS_CHAIN_REPLAY",
+      "description": "Signature generated for Base Sepolia (84532) replayed on Ethereum Mainnet (1) must fail",
+      "replayDomain": {
+        "name": "USD Coin",
+        "version": "2",
+        "chainId": 1,
+        "verifyingContract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+      },
+      "signatureFromTC01": "031207f584bc8e976a0ce72ea1c9c85cdb4da7686401c5b6efdc27040e5b0f222eacb1d50c27d4f5052b776e4bb5f1b42ce5c17fb7f553d44d0c42105444f4f11b",
+      "expectedBehavior": "RECOVERED_ADDRESS_MISMATCH"
     }
   ]
 }

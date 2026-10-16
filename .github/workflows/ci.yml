@@ -38,3 +38,7 @@ jobs:
       - name: Run Pytest Suite
         run: |
           pytest python/tests -v
+
+      - name: Validate Conformance Vectors
+        run: |
+          python scripts/validate_vectors.py specs/conformance/test-vectors

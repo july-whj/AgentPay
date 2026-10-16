@@ -1,11 +1,11 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "suite": "x402-v2-challenge-conformance",
-  "description": "Standard test vectors for x402 V2 HTTP header serialization, challenge encoding, and signature schemas",
+  "description": "Standard test vectors for AgentPay x402 V2 profile HTTP header serialization, challenge encoding, and signature schemas",
   "validChallenges": [
     {
       "id": "TC_X402_01_VALID_STANDARD_CHALLENGE",
-      "description": "Standard Base Sepolia 0.05 USDC challenge",
+      "description": "Standard Base Sepolia 0.05 USDC challenge (matches TC_EIP712_03)",
       "payload": {
         "version": "2.0",
         "challengeId": "ch_01j7xyz890abcdef12345678",
@@ -18,14 +18,14 @@
         "scheme": "EIP-3009",
         "validAfter": 1729000000,
         "validBefore": 1729000300,
-        "facilitatorUrl": "https://facilitator.agentpay.dev",
+        "facilitatorUrl": "https://facilitator.example.com",
         "resourceUri": "/v1/market-data"
       },
       "expectedHeader": "PAYMENT-REQUIRED"
     },
     {
       "id": "TC_X402_02_VALID_SIGNATURE_HEADER",
-      "description": "Client payment authorization header matching challenge",
+      "description": "Client payment authorization header matching TC_X402_01 and TC_EIP712_03",
       "payload": {
         "version": "2.0",
         "challengeId": "ch_01j7xyz890abcdef12345678",
@@ -35,10 +35,10 @@
         "validAfter": 1729000000,
         "validBefore": 1729000300,
         "signature": {
-          "v": 27,
-          "r": "0x6f2b1a8c90abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-          "s": "0x1a8c6f2b90abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-          "compact": "0x6f2b1a8c90abcdef1234567890abcdef1234567890abcdef1234567890abcdef1a8c6f2b90abcdef1234567890abcdef1234567890abcdef1234567890abcdef1b"
+          "v": 28,
+          "r": "0xd90ab6b36f43fea017b168106d443b874dbeaeec24a4c416b7abc38afa9baa83",
+          "s": "0x530e805bb1a29839651fac0cb1f3f1c05a7c659760488173ed1fd582819467e0",
+          "serialized": "d90ab6b36f43fea017b168106d443b874dbeaeec24a4c416b7abc38afa9baa83530e805bb1a29839651fac0cb1f3f1c05a7c659760488173ed1fd582819467e01c"
         }
       },
       "expectedHeader": "PAYMENT-SIGNATURE"
@@ -56,7 +56,7 @@
         "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
         "scheme": "EIP-3009"
       },
-      "expectedError": "MissingField: amount"
+      "expectedError": "MISSING_REQUIRED_FIELD"
     },
     {
       "id": "TC_X402_INVALID_02_MALFORMED_NETWORK",
@@ -70,7 +70,7 @@
         "payee": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
         "scheme": "EIP-3009"
       },
-      "expectedError": "InvalidFormat: network must match CAIP-2"
+      "expectedError": "NETWORK_NOT_WHITELISTED"
     }
   ]
 }
